@@ -1,0 +1,30 @@
+# Пути относительно папки Project/
+paths:
+  sql_sources: "../Files/Файлы к ML"
+  output: "./output"
+
+parser:
+  dialect: postgres
+  default_schema: public
+  recursive: true
+  patterns:
+    - "*.sql"
+    - "*.ddl"
+
+database:
+  host: localhost
+  port: 5432
+  user: dv_user
+  password: dv_pass
+  name: source_db
+  source_schema: src
+  meta_schema: dv_meta
+
+llm:
+  provider: ollama
+  model: qwen2.5-coder:7b
+  base_url: http://localhost:11434
+  timeout_sec: 600
+  num_predict: 2048
+  num_ctx: 8192
+  keep_alive: 30m

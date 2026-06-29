@@ -1,0 +1,310 @@
+# Эталонные примеры разметки для few-shot промпта Qwen
+
+examples:
+  - id: stg_crm_orders
+    title: "Плоская staging-таблица CRM (клиент + заказ в одной строке)"
+    description: |
+      Денормализованная staging-таблица содержит два бизнес-объекта в одной строке.
+      Из неё строятся 2 хаба, 1 линк и 2 сателлита.
+    source_table: stg_crm_orders
+    rules:
+      - "customer_id → hub_customer (BK клиента); тот же столбец участвует в link_customer_order"
+      - "order_num → hub_order (BK заказа); тот же столбец участвует в link_customer_order"
+      - "first_name, last_name, email → sat_customer_profile (атрибуты клиента)"
+      - "order_date, total_amount, status → sat_order_details (атрибуты заказа)"
+      - "load_date, record_source → технические поля DV (load_date, record_source), не бизнес-BK"
+    columns:
+      - column_name: customer_id
+        dv_type: hub
+        dv_target_entity: hub_customer
+        dv_role: business_key
+        is_business_key: true
+        reasoning: "BK клиента; также ключ в link_customer_order"
+      - column_name: first_name
+        dv_type: satellite
+        dv_target_entity: sat_customer_profile
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Имя клиента — описательный атрибут"
+      - column_name: last_name
+        dv_type: satellite
+        dv_target_entity: sat_customer_profile
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Фамилия клиента"
+      - column_name: email
+        dv_type: satellite
+        dv_target_entity: sat_customer_profile
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Email клиента"
+      - column_name: order_num
+        dv_type: hub
+        dv_target_entity: hub_order
+        dv_role: business_key
+        is_business_key: true
+        reasoning: "BK заказа; также ключ в link_customer_order"
+      - column_name: order_date
+        dv_type: satellite
+        dv_target_entity: sat_order_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Дата заказа — атрибут заказа"
+      - column_name: total_amount
+        dv_type: satellite
+        dv_target_entity: sat_order_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Сумма заказа"
+      - column_name: status
+        dv_type: satellite
+        dv_target_entity: sat_order_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Статус заказа"
+      - column_name: load_date
+        dv_type: satellite
+        dv_target_entity: sat_customer_profile
+        dv_role: operational_key
+        is_business_key: false
+        reasoning: "Техническое поле DV — дата загрузки в Raw Vault"
+      - column_name: record_source
+        dv_type: satellite
+        dv_target_entity: sat_customer_profile
+        dv_role: operational_key
+        is_business_key: false
+        reasoning: "Техническое поле DV — источник записи"
+
+    dv_entities:
+      hubs:
+        - hub_customer
+        - hub_order
+      links:
+        - link_customer_order  # MD5(customer_id || ';' || order_num), связь hub_customer ↔ hub_order
+      satellites:
+        - sat_customer_profile
+        - sat_order_details
+
+  # ---------------------------------------------------------------------------
+  # Нефтегаз: нормализованная модель (справочник + факты + логистика)
+  # ---------------------------------------------------------------------------
+  - id: oil_wells
+    title: "Нефтегаз: справочник скважин (hub + satellite)"
+    description: |
+      Классический справочник: BK в hub, описательные поля в satellite.
+    source_table: wells
+    rules:
+      - "well_id → hub_well (business_key)"
+      - "name, field_name, region, start_date, operator, status → sat_well_details"
+    columns:
+      - column_name: well_id
+        dv_type: hub
+        dv_target_entity: hub_well
+        dv_role: business_key
+        is_business_key: true
+        reasoning: "BK скважины"
+      - column_name: name
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Наименование скважины"
+      - column_name: field_name
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Месторождение"
+      - column_name: region
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Регион добычи"
+      - column_name: start_date
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Дата ввода в эксплуатацию"
+      - column_name: operator
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Оператор"
+      - column_name: status
+        dv_type: satellite
+        dv_target_entity: sat_well_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Статус скважины"
+    dv_entities:
+      hubs: [hub_well]
+      links: []
+      satellites: [sat_well_details]
+
+  - id: oil_production
+    title: "Нефтегаз: суточная добыча (link + multi-active satellite)"
+    description: |
+      Фактическая таблица: FK на hub — link_key; date — grain; метрики — satellite.
+    source_table: production
+    rules:
+      - "prod_id → operational_key (суррогат PK источника)"
+      - "well_id → link_well_production (FK → hub_well)"
+      - "date → grain_key сателлита sat_well_production"
+      - "oil_ton, gas_m3, water_m3, ... → атрибуты sat_well_production"
+    columns:
+      - column_name: prod_id
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: operational_key
+        is_business_key: false
+        reasoning: "Суррогатный PK — не в Raw Vault"
+      - column_name: well_id
+        dv_type: link
+        dv_target_entity: link_well_production
+        dv_role: link_key
+        is_business_key: false
+        reasoning: "FK → hub_well"
+      - column_name: date
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: grain_key
+        is_business_key: false
+        reasoning: "Grain: суточная добыча"
+      - column_name: oil_ton
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Добыча нефти, т"
+      - column_name: gas_m3
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Добыча газа"
+      - column_name: water_m3
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Добыча воды"
+      - column_name: energy_kwh
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Энергопотребление"
+      - column_name: downtime_hours
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Часы простоя"
+      - column_name: temperature
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Температура"
+      - column_name: pressure
+        dv_type: satellite
+        dv_target_entity: sat_well_production
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Давление"
+    dv_entities:
+      hubs: [hub_well]
+      links: [link_well_production]
+      satellites: [sat_well_production]
+
+  - id: oil_deliveries
+    title: "Нефтегаз: логистика (hub + несколько link + satellite)"
+    description: |
+      Транзакция: BK поставки в hub; driver_id/vehicle_id — link; source/destination — link на локации.
+    source_table: deliveries
+    rules:
+      - "delivery_id → hub_delivery (business_key)"
+      - "driver_id → link_delivery_driver (FK → hub_driver)"
+      - "vehicle_id → link_delivery_vehicle (FK → hub_vehicle)"
+      - "source, destination → link_delivery_route (текстовые BK локаций)"
+      - "product_type, volume_ton, cost_usd, ... → sat_delivery_details"
+    columns:
+      - column_name: delivery_id
+        dv_type: hub
+        dv_target_entity: hub_delivery
+        dv_role: business_key
+        is_business_key: true
+        reasoning: "BK поставки"
+      - column_name: date
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: grain_key
+        is_business_key: false
+        reasoning: "Дата отгрузки"
+      - column_name: source
+        dv_type: link
+        dv_target_entity: link_delivery_route
+        dv_role: link_key
+        is_business_key: false
+        reasoning: "Точка отправления"
+      - column_name: destination
+        dv_type: link
+        dv_target_entity: link_delivery_route
+        dv_role: link_key
+        is_business_key: false
+        reasoning: "Точка назначения"
+      - column_name: product_type
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Тип продукта"
+      - column_name: volume_ton
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Объём, т"
+      - column_name: cost_usd
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Стоимость"
+      - column_name: delay_hours
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Задержка"
+      - column_name: distance_km
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Расстояние"
+      - column_name: weather_conditions
+        dv_type: satellite
+        dv_target_entity: sat_delivery_details
+        dv_role: attribute
+        is_business_key: false
+        reasoning: "Погода"
+      - column_name: driver_id
+        dv_type: link
+        dv_target_entity: link_delivery_driver
+        dv_role: link_key
+        is_business_key: false
+        reasoning: "FK → hub_driver"
+      - column_name: vehicle_id
+        dv_type: link
+        dv_target_entity: link_delivery_vehicle
+        dv_role: link_key
+        is_business_key: false
+        reasoning: "FK → hub_vehicle"
+    dv_entities:
+      hubs: [hub_delivery, hub_driver, hub_vehicle]
+      links: [link_delivery_driver, link_delivery_vehicle, link_delivery_route]
+      satellites: [sat_delivery_details]

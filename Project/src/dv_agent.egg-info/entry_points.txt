@@ -1,0 +1,3 @@
+[console_scripts]
+dv-agent = dv_agent.cli:app
+dv-agent-ui = dv_agent.ui.runner:main
